@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Contracts\Http\Kernel;
+use App\Http\Middleware\LogRequests;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        $kernel = app(Kernel::class);
+        $kernel->pushMiddleware(LogRequests::class);
     }
 }

@@ -1,32 +1,27 @@
 <?php
 
-namespace App\Http\Controllers\Student;
+use Illuminate\Support\Facades\Route;   
+use App\Livewire\Student\ThesisSelectionForm;
+use App\Http\Controllers\Admin\StudentController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\ThesisTitleController;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Student;
-use App\Models\ThesisTitle;
+// Default route (welcome page)
+Route::get('/', ThesisSelectionForm::class)->name('student.thesis-selection');
 
-class ThesisSelectionController extends Controller
-{
-     public function index()
-    {
-        return view('student.thesis-selection');
-    }
+// Middleware untuk user yang sudah login
+Route::middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified',
+])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    public function verifyToken($token)
-    {
-        $student = Student::where('token', strtoupper($token))->first();
-
-        if (!$student) {
-            return response()->json(['success' => false, 'message' => 'Invalid token']);
-        }
-
-        return response()->json([
-            'success' => true,
-            'student' => $student
-        ]);
-    }
-            // If no student is found, return an error message
-}
-        // If the student is found, return the student data
+    // Admin Routes dengan middleware tambahan
+    Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function () {
+        Route::resource('students', StudentController::class);
+        Route::resource('thesis-titles', ThesisTitleController::class);
+        Route::resource('activity-logs', ActivityLogController::class);
+    });
+});
