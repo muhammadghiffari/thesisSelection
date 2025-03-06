@@ -107,7 +107,7 @@
             </div>
             @endif
             
-            <!-- Step 2: Judul Skripsi -->
+              <!-- Step 2: Judul Skripsi -->
             @if ($step == 2)
             <div>
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Pilih Judul Skripsi</h3>
@@ -120,18 +120,44 @@
                     </div>
                 </div>
                 
-                <div class="space-y-4">
+                <div class="space-y-4" id="thesis-titles-container">
                     @foreach ($thesisTitles as $thesis)
-                    <div class="relative flex items-start border rounded-md p-4 hover:bg-gray-50">
+                    <div 
+                        class="relative flex items-start border rounded-md p-4 hover:bg-gray-50 {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-50 border-yellow-300' : '' }}"
+                        id="thesis-container-{{ $thesis->id }}"
+                    >
                         <div class="flex items-center h-5">
-                            <input id="thesis-{{ $thesis->id }}" wire:model.live="selectedThesisTitle" value="{{ $thesis->id }}" type="radio" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300">
+                            <input 
+                                id="thesis-{{ $thesis->id }}" 
+                                wire:model.live="selectedThesisTitle" 
+                                value="{{ $thesis->id }}" 
+                                type="radio" 
+                                class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
+                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'disabled' : '' }}
+                            >
                         </div>
                         <div class="ml-3 flex-1">
                             <label for="thesis-{{ $thesis->id }}" class="font-medium text-gray-700">{{ $thesis->title }}</label>
                             <p class="text-gray-500 text-sm">{{ $thesis->description }}</p>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2">
-                                {{ $thesis->status }}
-                            </span>
+                            <div class="flex justify-between items-center mt-2">
+                                <span 
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800' }}"
+                                    id="thesis-status-{{ $thesis->id }}"
+                                >
+                                    {{ isset($thesisTitlesStatus[$thesis->id]) ? $thesisTitlesStatus[$thesis->id] : 'Available' }}
+                                </span>
+                                
+                                <!-- Countdown Timer (only shown for 'In Selection' status) -->
+                                @if(isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection')
+                                <span 
+                                    class="countdown-timer inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
+                                    data-thesis-id="{{ $thesis->id }}"
+                                    data-expires-at="{{ $countdowns[$thesis->id] ?? 0 }}"
+                                >
+                                    Waktu tersisa: <span id="countdown-{{ $thesis->id }}">01:00</span>
+                                </span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                     @endforeach
@@ -237,3 +263,29 @@
         </div>
     </div>
 </div>
+
+<script>
+    // JavaScript untuk menangani countdown timer
+    document.addEventListener('livewire:initialized', () => {
+        initializeCountdowns();
+
+        @this.on('refreshCountdowns', () => {
+            // Re-initialize countdowns when data is refreshed
+            initializeCountdowns();
+        });
+    });
+
+    function initializeCountdowns() {
+        // Clear any existing intervals
+        document.querySelectorAll('.countdown-timer').forEach(timer => {
+            const thesisId = timer.getAttribute('data-thesis-id');
+            if (window['countdownInterval_' + thesisId]) {
+                clearInterval(window['countdownInterval_' + thesisId]);
+            }
+
+            const expiresAt = parseInt(timer.getAttribute('data-expires-at'));
+            if (expiresAt) {
+                startCountdown(thesisId, expiresAt);
+            }
+        });
+    }
