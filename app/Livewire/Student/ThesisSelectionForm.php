@@ -334,6 +334,73 @@ class ThesisSelectionForm extends Component
         }
     }
 
+    // Add to your ThesisSelectionForm.php
+
+    // Add this method to reset a thesis selection when the timer expires
+    public function resetThesisSelection($thesisId)
+    {
+        $thesis = ThesisTitle::find($thesisId);
+        if ($thesis) {
+            // Reset status in database
+            DB::table('thesis_selection_status')->where('thesis_id', $thesisId)->delete();
+
+            // Update local data
+            unset($this->thesisTitlesStatus[$thesisId]);
+            unset($this->countdowns[$thesisId]);
+
+            // Broadcast the update to all clients
+            broadcast(new ThesisSelectionUpdated($thesisId, 'Available', null, 'reset'))->toOthers();
+
+            // Refresh the data
+            $this->loadThesisTitles();
+
+            // Dispatch event to refresh JS countdowns
+            $this->dispatch('refreshCountdowns');
+        }
+    }
+
+    // Add this method to handle selection of a thesis
+    public function selectThesisTitle($thesisId)
+    {
+        // Check if thesis is available
+        if (isset($this->thesisTitlesStatus[$thesisId]) && $this->thesisTitlesStatus[$thesisId] == 'In Selection') {
+            $this->addError('selectedThesisTitle', 'Judul skripsi ini sedang dipilih oleh mahasiswa lain.');
+            return;
+        }
+
+        // Create expires timestamp (1 minute from now)
+        $expiresAt = time() + 60;
+
+        // Update status in database
+        DB::table('thesis_selection_status')->updateOrInsert(
+            ['thesis_id' => $thesisId],
+            [
+                'status'     => 'In Selection',
+                'student_id' => $this->selectedStudent,
+                'expires_at' => $expiresAt,
+                'updated_at' => now()
+            ]
+        );
+
+        // Update local data
+        $this->thesisTitlesStatus[$thesisId] = 'In Selection';
+        $this->countdowns[$thesisId] = $expiresAt;
+        $this->selectedThesisTitle = $thesisId;
+
+        // Broadcast the update to all clients
+        broadcast(new ThesisSelectionUpdated($thesisId, 'In Selection', $expiresAt, 'select'))->toOthers();
+
+        // Dispatch event to refresh JS countdowns
+        $this->dispatch('refreshCountdowns');
+    }
+
+    // Add this method to refresh countdown data
+    public function refreshCountdownData()
+    {
+        // Reload thesis statuses and countdown data from database
+        $this->loadThesisTitles();
+        $this->dispatch('refreshCountdowns');
+    }
     public function resetForm()
     {
         $this->reset(['step', 'selectedStudent', 'studentClass', 'studentTopic', 'token', 'npm', 'email', 'thesisTitles', 'selectedThesisTitle', 'error', 'success', 'thesisTitlesStatus', 'countdowns']);

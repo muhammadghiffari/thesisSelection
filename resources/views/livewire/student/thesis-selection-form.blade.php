@@ -4,24 +4,24 @@
             <div class="text-2xl font-bold text-center mb-6">
                 Sistem Pemilihan Judul Skripsi
             </div>
-            
+
             @if ($error)
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
                 <span class="block sm:inline">{{ $error }}</span>
             </div>
             @endif
-            
+
             @if ($success)
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
                 <span class="block sm:inline">{{ $success }}</span>
             </div>
             @endif
-            
+
             <!-- Progress Bar -->
             <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ $step * 25 }}%"></div>
             </div>
-            
+
             <div class="flex justify-between mb-6 text-sm">
                 <div class="text-center {{ $step >= 1 ? 'text-blue-600 font-medium' : 'text-gray-500' }}">
                     <div class="w-8 h-8 mx-auto flex items-center justify-center rounded-full {{ $step >= 1 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500' }} mb-1">1</div>
@@ -40,7 +40,7 @@
                     Selesai
                 </div>
             </div>
-            
+
             <!-- Step 1: Data Diri -->
             @if ($step == 1)
             <div class="space-y-4">
@@ -56,7 +56,7 @@
                     </div>
                     @error('selectedStudent') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                
+
                 <!-- Show Class and Topic if student is selected -->
                 @if ($selectedStudent)
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -74,7 +74,7 @@
                     </div>
                 </div>
                 @endif
-                
+
                 <div>
                     <label for="token" class="block text-sm font-medium text-gray-700">Token</label>
                     <div class="mt-1">
@@ -82,7 +82,7 @@
                     </div>
                     @error('token') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                
+
                 <div>
                     <label for="npm" class="block text-sm font-medium text-gray-700">NPM</label>
                     <div class="mt-1">
@@ -90,7 +90,7 @@
                     </div>
                     @error('npm') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                
+
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-700">Email @ui.ac.id</label>
                     <div class="mt-1">
@@ -98,7 +98,7 @@
                     </div>
                     @error('email') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                
+
                 <div class="flex justify-end pt-5">
                     <button type="button" wire:click="continueToStep2" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Lanjutkan
@@ -106,12 +106,12 @@
                 </div>
             </div>
             @endif
-            
+
               <!-- Step 2: Judul Skripsi -->
             @if ($step == 2)
             <div>
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Pilih Judul Skripsi</h3>
-                
+
                 <div class="space-y-4 mb-6">
                     <div class="bg-gray-50 p-4 rounded-md">
                         <p class="text-sm font-medium text-gray-700">Mahasiswa: <span class="font-semibold">{{ optional(App\Models\Student::find($selectedStudent))->name }}</span></p>
@@ -119,19 +119,19 @@
                         <p class="text-sm font-medium text-gray-700">Topik: <span class="font-semibold">{{ $studentTopic }}</span></p>
                     </div>
                 </div>
-                
+
                 <div class="space-y-4" id="thesis-titles-container">
                     @foreach ($thesisTitles as $thesis)
-                    <div 
+                    <div
                         class="relative flex items-start border rounded-md p-4 hover:bg-gray-50 {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-50 border-yellow-300' : '' }}"
                         id="thesis-container-{{ $thesis->id }}"
                     >
                         <div class="flex items-center h-5">
-                            <input 
-                                id="thesis-{{ $thesis->id }}" 
-                                wire:model.live="selectedThesisTitle" 
-                                value="{{ $thesis->id }}" 
-                                type="radio" 
+                            <input
+                                id="thesis-{{ $thesis->id }}"
+                                wire:model.live="selectThesisTitle"
+                                value="{{ $thesis->id }}"
+                                type="radio"
                                 class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
                                 {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'disabled' : '' }}
                             >
@@ -140,16 +140,16 @@
                             <label for="thesis-{{ $thesis->id }}" class="font-medium text-gray-700">{{ $thesis->title }}</label>
                             <p class="text-gray-500 text-sm">{{ $thesis->description }}</p>
                             <div class="flex justify-between items-center mt-2">
-                                <span 
+                                <span
                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800' }}"
                                     id="thesis-status-{{ $thesis->id }}"
                                 >
                                     {{ isset($thesisTitlesStatus[$thesis->id]) ? $thesisTitlesStatus[$thesis->id] : 'Available' }}
                                 </span>
-                                
+
                                 <!-- Countdown Timer (only shown for 'In Selection' status) -->
                                 @if(isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection')
-                                <span 
+                                <span
                                     class="countdown-timer inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
                                     data-thesis-id="{{ $thesis->id }}"
                                     data-expires-at="{{ $countdowns[$thesis->id] ?? 0 }}"
@@ -161,10 +161,10 @@
                         </div>
                     </div>
                     @endforeach
-                    
-                    @error('selectedThesisTitle') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+
+                    @error('selectThesisTitle') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                
+
                 <div class="flex justify-between pt-5">
                     <button type="button" wire:click="goBack" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Kembali
@@ -175,12 +175,12 @@
                 </div>
             </div>
             @endif
-            
+
             <!-- Step 3: Konfirmasi -->
             @if ($step == 3)
             <div>
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Konfirmasi Pemilihan Judul Skripsi</h3>
-                
+
                 <div class="bg-gray-50 p-6 rounded-lg mb-6">
                     <div class="mb-4">
                         <h4 class="text-base font-medium text-gray-800">Data Mahasiswa</h4>
@@ -207,16 +207,16 @@
                             </div>
                         </dl>
                     </div>
-                    
+
                     <div>
                         <h4 class="text-base font-medium text-gray-800">Judul Skripsi Terpilih</h4>
                         <div class="mt-2 bg-white p-4 rounded-md border border-gray-200">
-                            <h5 class="text-sm font-bold text-gray-900">{{ optional(App\Models\ThesisTitle::find($selectedThesisTitle))->title }}</h5>
-                            <p class="mt-1 text-sm text-gray-600">{{ optional(App\Models\ThesisTitle::find($selectedThesisTitle))->description }}</p>
+                            <h5 class="text-sm font-bold text-gray-900">{{ optional(App\Models\ThesisTitle::find($selectThesisTitle))->title }}</h5>
+                            <p class="mt-1 text-sm text-gray-600">{{ optional(App\Models\ThesisTitle::find($selectThesisTitle))->description }}</p>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
                     <div class="flex">
                         <div class="flex-shrink-0">
@@ -231,7 +231,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="flex justify-between pt-5">
                     <button type="button" wire:click="goBack" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Kembali
@@ -242,7 +242,7 @@
                 </div>
             </div>
             @endif
-            
+
             <!-- Step 4: Selesai -->
             @if ($step == 4)
             <div class="text-center py-10">
@@ -289,3 +289,114 @@
             }
         });
     }
+
+    function startCountdown(thesisId, expiresAt) {
+    const countdownElement = document.getElementById('countdown-' + thesisId);
+    if (!countdownElement) return;
+
+    window['countdownInterval_' + thesisId] = setInterval(() => {
+        // Get current timestamp in seconds
+        const now = Math.floor(Date.now() / 1000);
+        // Calculate remaining time
+        const remainingTime = expiresAt - now;
+
+        if (remainingTime <= 0) {
+            // Time's up!
+            clearInterval(window['countdownInterval_' + thesisId]);
+            countdownElement.textContent = '00:00';
+
+            // Notify Livewire component that time is up
+            @this.call('resetThesisSelection', thesisId);
+
+            // Update UI immediately
+            const thesisContainer = document.getElementById('thesis-container-' + thesisId);
+            const thesisStatus = document.getElementById('thesis-status-' + thesisId);
+            const thesisInput = document.getElementById('thesis-' + thesisId);
+
+            if (thesisContainer) thesisContainer.classList.remove('bg-yellow-50', 'border-yellow-300');
+            if (thesisStatus) {
+                thesisStatus.textContent = 'Available';
+                thesisStatus.classList.remove('bg-yellow-100', 'text-yellow-800');
+                thesisStatus.classList.add('bg-green-100', 'text-green-800');
+            }
+            if (thesisInput) thesisInput.disabled = false;
+
+            // Hide countdown timer
+            const timerElement = document.querySelector(`.countdown-timer[data-thesis-id="${thesisId}"]`);
+            if (timerElement) timerElement.style.display = 'none';
+
+        } else {
+            // Format time as MM:SS
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            countdownElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+    }, 1000);
+}
+
+// Listen for Pusher updates
+document.addEventListener('DOMContentLoaded', function() {
+    Echo.channel('thesis-selection')
+        .listen('ThesisSelectionUpdated', (e) => {
+            // Update UI based on the event data
+            const { thesisId, status, expiresAt, action } = e;
+
+            // Get elements
+            const thesisContainer = document.getElementById('thesis-container-' + thesisId);
+            const thesisStatus = document.getElementById('thesis-status-' + thesisId);
+            const thesisInput = document.getElementById('thesis-' + thesisId);
+
+            if (!thesisContainer || !thesisStatus || !thesisInput) return;
+
+            if (action === 'select') {
+                // Thesis was selected by someone
+                thesisContainer.classList.add('bg-yellow-50', 'border-yellow-300');
+                thesisStatus.textContent = 'In Selection';
+                thesisStatus.classList.remove('bg-green-100', 'text-green-800');
+                thesisStatus.classList.add('bg-yellow-100', 'text-yellow-800');
+                thesisInput.disabled = true;
+
+                // Add countdown timer if it doesn't exist
+                let timerElement = document.querySelector(`.countdown-timer[data-thesis-id="${thesisId}"]`);
+                if (!timerElement) {
+                    timerElement = document.createElement('span');
+                    timerElement.className = 'countdown-timer inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800';
+                    timerElement.setAttribute('data-thesis-id', thesisId);
+                    timerElement.setAttribute('data-expires-at', expiresAt);
+                    timerElement.innerHTML = `Waktu tersisa: <span id="countdown-${thesisId}">01:00</span>`;
+
+                    // Append to the container
+                    thesisContainer.querySelector('.flex-1 .flex.justify-between.items-center.mt-2').appendChild(timerElement);
+                } else {
+                    timerElement.style.display = 'inline-flex';
+                    timerElement.setAttribute('data-expires-at', expiresAt);
+                }
+
+                // Start countdown
+                startCountdown(thesisId, expiresAt);
+
+            } else if (action === 'reset') {
+                // Thesis selection was reset
+                thesisContainer.classList.remove('bg-yellow-50', 'border-yellow-300');
+                thesisStatus.textContent = 'Available';
+                thesisStatus.classList.remove('bg-yellow-100', 'text-yellow-800');
+                thesisStatus.classList.add('bg-green-100', 'text-green-800');
+                thesisInput.disabled = false;
+
+                // Hide countdown timer
+                const timerElement = document.querySelector(`.countdown-timer[data-thesis-id="${thesisId}"]`);
+                if (timerElement) timerElement.style.display = 'none';
+
+                // Clear interval
+                if (window['countdownInterval_' + thesisId]) {
+                    clearInterval(window['countdownInterval_' + thesisId]);
+                }
+            }
+        });
+});
+
+// Handle page refresh and make sure countdowns are synced
+window.addEventListener('focus', function() {
+    // Refresh countdown data when the page gets focus
+    @this.call('refreshCountdownData');
+});
