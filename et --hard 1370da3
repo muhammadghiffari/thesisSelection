@@ -1,0 +1,26 @@
+[33mbf29c5d[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to bf29c5d
+[33m1370da3[m HEAD@{1}: reset: moving to 1370da3
+[33m907fcdd[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{2}: reset: moving to HEAD
+[33m907fcdd[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{3}: reset: moving to HEAD
+[33m907fcdd[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{4}: reset: moving to HEAD
+[33m907fcdd[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{5}: commit: Realtime Debug
+[33m1370da3[m HEAD@{6}: reset: moving to HEAD
+[33m1370da3[m HEAD@{7}: reset: moving to HEAD
+[33m1370da3[m HEAD@{8}: reset: moving to HEAD
+[33m1370da3[m HEAD@{9}: reset: moving to HEAD
+[33m1370da3[m HEAD@{10}: reset: moving to HEAD
+[33m1370da3[m HEAD@{11}: reset: moving to HEAD
+[33m1370da3[m HEAD@{12}: commit: Add ignore folder
+[33mfb51d31[m HEAD@{13}: commit: Update Realtime and Countdown(debugging)
+[33m21a8a91[m HEAD@{14}: reset: moving to HEAD
+[33m21a8a91[m HEAD@{15}: commit: Update still debugging
+[33m8139aa2[m HEAD@{16}: reset: moving to HEAD
+[33m8139aa2[m HEAD@{17}: reset: moving to HEAD
+[33m8139aa2[m HEAD@{18}: reset: moving to HEAD
+[33m8139aa2[m HEAD@{19}: reset: moving to HEAD
+[33m8139aa2[m HEAD@{20}: reset: moving to HEAD
+[33m8139aa2[m HEAD@{21}: reset: moving to HEAD~1
+[33m5346ba9[m HEAD@{22}: commit: Update View (Thesis Title Test Change Livewire)
+[33m8139aa2[m HEAD@{23}: commit: Update View (Thesis Title still not Available)
+[33mbf29c5d[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m HEAD@{24}: Branch: renamed refs/heads/master to refs/heads/main
+[33mbf29c5d[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m HEAD@{26}: commit (initial): Progress

@@ -272,19 +272,20 @@ class ThesisSelectionForm extends Component
 
     public function confirmSelection()
     {
-        $student = Student::find($this->selectedStudent);
-        $thesisTitle = ThesisTitle::find($this->selectedThesisTitle);
-
-        if (!$student || !$thesisTitle) {
-            $this->error = 'Data tidak valid.';
-            return;
-        }
-
         try {
-            // Mulai transaksi database
+            $student = Student::find($this->selectedStudent);
+            $thesisTitle = ThesisTitle::find($this->selectedThesisTitle);
+
+            if (!$student || !$thesisTitle) {
+                $this->error = 'Data tidak valid. Student: ' . ($student ? 'Found' : 'Not found') .
+                    ', Thesis: ' . ($thesisTitle ? 'Found' : 'Not found');
+                return;
+            }
+
+            // Start database transaction
             DB::beginTransaction();
 
-            // Periksa apakah timer masih berlaku
+            // Check if timer is still valid
             $activeSelection = ThesisSelection::where('thesis_title_id', $thesisTitle->id)
                 ->where('student_id', $student->id)
                 ->where('status', 'Pending')
@@ -299,41 +300,68 @@ class ThesisSelectionForm extends Component
                 return;
             }
 
-            // Update status judul skripsi menjadi Unavailable
+            // Update thesis title status
             $thesisTitle->status = 'Unavailable';
             $thesisTitle->save();
 
-            // Update status selection menjadi Approved
+            // Update selection status
             $activeSelection->status = 'Approved';
             $activeSelection->save();
 
-            // Update status mahasiswa
+            // Update student status
             $student->has_selected = true;
             $student->save();
 
-            // Log aktivitas
+            // Log activity
             $student->activityLogs()->create([
                 'action'      => 'thesis_selection',
                 'description' => 'Mahasiswa memilih judul skripsi: ' . $thesisTitle->title,
                 'ip_address'  => request()->ip()
             ]);
 
-            // Broadcast ke admin dan semua user bahwa judul ini sudah tidak tersedia lagi
+            // Broadcast event
             event(new ThesisSelectionEvent($thesisTitle, 'unavailable'));
 
-            // Kirim email konfirmasi (bisa dijalankan di background job)
-            // \App\Jobs\SendSelectionConfirmationEmail::dispatch($student, $thesisTitle);
-
+            // Commit the transaction
             DB::commit();
 
+            // Move to success step
             $this->step = 4;
             $this->success = 'Pemilihan judul skripsi berhasil. Silakan cek email Anda untuk konfirmasi.';
         } catch (\Exception $e) {
             DB::rollBack();
             $this->error = 'Terjadi kesalahan: ' . $e->getMessage();
+            // Add a debugging message that shows where the error occurred
+            $this->error .= ' [Line: ' . $e->getLine() . ' in ' . basename($e->getFile()) . ']';
         }
     }
+    public function debugConfirmation()
+    {
+        $student = Student::find($this->selectedStudent);
+        $thesisTitle = ThesisTitle::find($this->selectedThesisTitle);
 
+        $activeSelection = null;
+        if ($student && $thesisTitle) {
+            $activeSelection = ThesisSelection::where('thesis_title_id', $thesisTitle->id)
+                ->where('student_id', $student->id)
+                ->where('status', 'Pending')
+                ->latest()
+                ->first();
+        }
+
+        $debugInfo = [
+            'student_found'    => $student ? true : false,
+            'thesis_found'     => $thesisTitle ? true : false,
+            'active_selection' => $activeSelection ? [
+                'id'      => $activeSelection->id,
+                'status'  => $activeSelection->status,
+                'expired' => $activeSelection->expires_at < now()
+            ] : null,
+            'current_step'     => $this->step
+        ];
+
+        $this->error = 'Debug info: ' . json_encode($debugInfo);
+    }
     public function resetForm()
     {
         $this->reset(['step', 'selectedStudent', 'studentClass', 'studentTopic', 'token', 'npm', 'email', 'thesisTitles', 'selectedThesisTitle', 'error', 'success', 'thesisTitlesStatus', 'countdowns']);
