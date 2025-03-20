@@ -15,20 +15,20 @@ class ThesisSelectionEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $thesisTitle;
+    public $thesis;
     public $action;
-    public $timestamp;
     public $expiresAt;
+    public $student_id;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(ThesisTitle $thesisTitle, $action = 'selected', $expiresAt = null)
+    public function __construct(ThesisTitle $thesis, string $action, $expiresAt = null, $student_id = null)
     {
-        $this->thesisTitle = $thesisTitle;
-        $this->action = $action; // 'selected', 'expired', 'available'
-        $this->timestamp = now()->timestamp;
-        $this->expiresAt = $expiresAt ? $expiresAt->timestamp : now()->addMinute()->timestamp;
+        $this->thesis = $thesis;
+        $this->action = $action;
+        $this->expiresAt = $expiresAt;
+        $this->student_id = $student_id;
     }
 
     /**
@@ -54,17 +54,15 @@ class ThesisSelectionEvent implements ShouldBroadcast
     /**
      * Get the data to broadcast.
      *
-     * @return array<string, mixed>
+     * @return array
      */
     public function broadcastWith(): array
     {
         return [
-            'id'        => $this->thesisTitle->id,
-            'title'     => $this->thesisTitle->title,
-            'status'    => $this->thesisTitle->status,
-            'action'    => $this->action,
-            'timestamp' => $this->timestamp,
-            'expiresAt' => $this->expiresAt,
+            'id'         => $this->thesis->id,
+            'action'     => $this->action,
+            'expiresAt'  => $this->expiresAt,
+            'student_id' => $this->student_id,
         ];
     }
 }
