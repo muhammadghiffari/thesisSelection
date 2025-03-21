@@ -24,11 +24,12 @@ class ThesisSelectionForm extends Component
     public $selectedThesisTitle = null;
     public $thesisTitlesStatus = [];
     public $countdowns = [];
-
-public $search = '';
-public $statusFilter = 'all';
-public $sortField = 'status';
-public $sortDirection = 'asc';
+    public $search = '';
+    public $statusFilter = 'all';
+    public $sortField = 'status';
+    public $sortDirection = 'asc';
+    public $isSearching = false; // Flag to indicate search is in progress
+    public $searchRelevanceActive = false; // Flag to indicate relevance-based sorting is active
     public $error = null;
     public $success = null;
     public $activeCountdown = null;
@@ -36,6 +37,7 @@ public $sortDirection = 'asc';
     protected $listeners = [
         'echo:thesis-selections,thesis.update' => 'handleThesisUpdate',
         'countdownEnded'                       => 'handleCountdownEnded',
+        'searchRelevance'                      => 'applySearchRelevance',
     ];
 
     protected $rules = [
@@ -62,7 +64,13 @@ public $sortDirection = 'asc';
 
     public function mount()
     {
+        // Initialize students with default sorting
         $this->students = Student::orderBy('name')->get();
+
+        // Initialize the component with thesis titles if a student is selected
+        if ($this->selectedStudent) {
+            $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
+        }
 
         // Listen for real-time updates
         $this->setupPusherListeners();
@@ -80,8 +88,10 @@ public $sortDirection = 'asc';
             ->layout('layouts.guest');
     }
 
-    protected function loadThesisTitles($topic)
+     protected function loadThesisTitles($topic)
     {
+        $this->isSearching = true;
+
         // Start with the base query
         $query = ThesisTitle::where('topic', $topic)
             ->whereIn('status', ['Available', 'In Selection', 'Unavailable']);
@@ -94,12 +104,6 @@ public $sortDirection = 'asc';
             });
         }
 
-        // // Apply status filter
-        // if ($this->statusFilter !== 'all') {
-        //     $status = $this->statusFilter === 'available' ? 'Available' :
-        //         ($this->statusFilter === 'in-selection' ? 'In Selection' : 'Unavailable');
-        //     $query->where('status', $status);
-        // }
         // Apply status filter
         if ($this->statusFilter === 'available') {
             $query->where('status', 'Available');
@@ -109,34 +113,111 @@ public $sortDirection = 'asc';
             $query->where('status', 'Unavailable');
         } else {
             // If 'all', show both available and in-selection
-            $query->whereIn('status', ['Available', 'In Selection']);
+            $query->whereIn('status', ['Available', 'In Selection', 'Unavailable']);
         }
 
-        // Apply sorting
-        // Default sorting: Available titles first, then alphabetically
-        if ($this->sortField === 'status') {
-            // Custom sorting to prioritize Available status
-            $query->orderByRaw("CASE
-            WHEN status = 'Available' THEN 1
-            WHEN status = 'In Selection' THEN 2
-            WHEN status = 'Unavailable' THEN 3
-            ELSE 4 END");
+        // Apply sorting - if not using relevance-based sorting
+        if (!$this->searchRelevanceActive || empty($this->search)) {
+            if ($this->sortField === 'status') {
+                $query->orderBy('status', $this->sortDirection);
+            } elseif ($this->sortField === 'title') {
+                $query->orderBy('title', $this->sortDirection);
+            }
+        }
 
-            // Secondary sort by title
-            $query->orderBy('title', 'asc');
+        // Get the results
+        $titles = $query->get();
+
+        // Apply relevance-based sorting if search is not empty
+        if (!empty($this->search) && $titles->count() > 0) {
+            $this->searchRelevanceActive = true;
+            $titles = $this->sortByRelevance($titles, $this->search);
         } else {
-            $query->orderBy($this->sortField, $this->sortDirection);
+            $this->searchRelevanceActive = false;
         }
 
-        $this->thesisTitles = $query->get();
-
-        // Refresh statuses from real-time data
+        $this->thesisTitles = $titles;
         $this->refreshThesisTitlesStatus();
+        $this->isSearching = false;
+    }
+    protected function sortByRelevance($titles, $searchQuery)
+    {
+        // Lowercase the search query for case-insensitive matching
+        $searchQuery = strtolower($searchQuery);
+        $searchTerms = explode(' ', $searchQuery);
+
+        // Filter out empty terms
+        $searchTerms = array_filter($searchTerms, function ($term) {
+            return !empty($term);
+        });
+
+        // Calculate relevance score for each thesis title
+        $scoredTitles = $titles->map(function ($thesis) use ($searchTerms, $searchQuery) {
+            $score = 0;
+            $title = strtolower($thesis->title);
+            $description = strtolower($thesis->description);
+
+            // Exact match in title gets highest score
+            if (str_contains($title, $searchQuery)) {
+                $score += 100;
+            }
+
+            // Exact match in description
+            if (str_contains($description, $searchQuery)) {
+                $score += 50;
+            }
+
+            // Partial matches for each search term
+            foreach ($searchTerms as $term) {
+                // Match in title
+                if (str_contains($title, $term)) {
+                    $score += 20;
+
+                    // Bonus for term at the beginning of title
+                    if (strpos($title, $term) === 0) {
+                        $score += 10;
+                    }
+                }
+
+                // Match in description
+                if (str_contains($description, $term)) {
+                    $score += 10;
+                }
+            }
+
+            // Give some priority to available titles
+            if ($thesis->status === 'Available') {
+                $score += 5;
+            }
+
+            $thesis->relevanceScore = $score;
+            return $thesis;
+        });
+
+        // Sort by relevance score (descending)
+        $sortedTitles = $scoredTitles->sortByDesc('relevanceScore');
+
+        return $sortedTitles->values();
     }
 
     // Add these methods to handle search, filter and sort
     public function updatedSearch()
     {
+        $this->isSearching = true;
+        $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
+    }
+
+    public function updatedSortField()
+    {
+        // Reset relevance-based sorting when manually changing sort field
+        $this->searchRelevanceActive = false;
+        $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
+    }
+
+    public function updatedSortDirection()
+    {
+        // Reset relevance-based sorting when manually changing sort direction
+        $this->searchRelevanceActive = false;
         $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
     }
 
@@ -145,14 +226,13 @@ public $sortDirection = 'asc';
         $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
     }
 
-    public function updatedSortField()
+    // Apply search relevance sorting
+    public function applySearchRelevance()
     {
-        $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
-    }
-
-    public function updatedSortDirection()
-    {
-        $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
+        if (!empty($this->search)) {
+            $this->searchRelevanceActive = true;
+            $this->thesisTitles = $this->sortByRelevance($this->thesisTitles, $this->search);
+        }
     }
 
     protected function refreshThesisTitlesStatus()
@@ -212,66 +292,67 @@ public $sortDirection = 'asc';
     }
 
     public function handleThesisUpdate($event)
-{
-    // Update status judul skripsi berdasarkan event real-time
-    if (isset($event['id'])) {
-        $thesisId = $event['id'];
+    {
+        // Update status judul skripsi berdasarkan event real-time
+        if (isset($event['id'])) {
+            $thesisId = $event['id'];
 
-        // Get the thesis title from database to ensure we have latest data
-        $thesis = ThesisTitle::find($thesisId);
-        if (!$thesis) return;
+            // Get the thesis title from database to ensure we have latest data
+            $thesis = ThesisTitle::find($thesisId);
+            if (!$thesis)
+                return;
 
-        if ($event['action'] == 'selected') {
-            $this->thesisTitlesStatus[$thesisId] = 'In Selection';
-            $expiresAt = Carbon::createFromTimestamp($event['expiresAt']);
-            $this->countdowns[$thesisId] = $event['expiresAt'];
+            if ($event['action'] == 'selected') {
+                $this->thesisTitlesStatus[$thesisId] = 'In Selection';
+                $expiresAt = Carbon::createFromTimestamp($event['expiresAt']);
+                $this->countdowns[$thesisId] = $event['expiresAt'];
 
-            // If user has this thesis selected, but someone else has claimed it
-            if ($this->selectedThesisTitle == $thesisId && $event['student_id'] != $this->selectedStudent) {
-                $this->selectedThesisTitle = null;
-                $this->dispatch('notify', ['type' => 'warning', 'message' => 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.']);
+                // If user has this thesis selected, but someone else has claimed it
+                if ($this->selectedThesisTitle == $thesisId && $event['student_id'] != $this->selectedStudent) {
+                    $this->selectedThesisTitle = null;
+                    $this->dispatch('notify', ['type' => 'warning', 'message' => 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.']);
+                }
+
+                // If we're in confirmation step and our selection is no longer valid
+                if ($this->step == 3 && $this->selectedThesisTitle == $thesisId && $event['student_id'] != $this->selectedStudent) {
+                    $this->error = 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.';
+                    $this->goBack();
+                    $this->dispatch('notify', ['type' => 'error', 'message' => 'Waktu pemilihan judul skripsi telah habis atau telah dipilih oleh mahasiswa lain.']);
+                }
+
+            } elseif ($event['action'] == 'expired' || $event['action'] == 'available') {
+                $this->thesisTitlesStatus[$thesisId] = 'Available';
+                unset($this->countdowns[$thesisId]);
+
+                // If we're in step 3 and our timer expired
+                if ($this->step == 3 && $this->selectedThesisTitle == $thesisId) {
+                    $this->error = 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.';
+                    $this->goBack();
+                    $this->dispatch('notify', ['type' => 'error', 'message' => 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.']);
+                }
+
+            } elseif ($event['action'] == 'unavailable') {
+                $this->thesisTitlesStatus[$thesisId] = 'Unavailable';
+                unset($this->countdowns[$thesisId]);
+
+                // If user has this thesis selected, but it's now unavailable
+                if ($this->selectedThesisTitle == $thesisId) {
+                    $this->selectedThesisTitle = null;
+                    $this->dispatch('notify', ['type' => 'warning', 'message' => 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.']);
+                }
+
+                // If we're in confirmation step and our selection is no longer valid
+                if ($this->step == 3 && $this->selectedThesisTitle == $thesisId) {
+                    $this->error = 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.';
+                    $this->goBack();
+                    $this->dispatch('notify', ['type' => 'error', 'message' => 'Judul skripsi telah dipilih oleh mahasiswa lain.']);
+                }
             }
 
-            // If we're in confirmation step and our selection is no longer valid
-            if ($this->step == 3 && $this->selectedThesisTitle == $thesisId && $event['student_id'] != $this->selectedStudent) {
-                $this->error = 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.';
-                $this->goBack();
-                $this->dispatch('notify', ['type' => 'error', 'message' => 'Waktu pemilihan judul skripsi telah habis atau telah dipilih oleh mahasiswa lain.']);
-            }
-
-        } elseif ($event['action'] == 'expired' || $event['action'] == 'available') {
-            $this->thesisTitlesStatus[$thesisId] = 'Available';
-            unset($this->countdowns[$thesisId]);
-
-            // If we're in step 3 and our timer expired
-            if ($this->step == 3 && $this->selectedThesisTitle == $thesisId) {
-                $this->error = 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.';
-                $this->goBack();
-                $this->dispatch('notify', ['type' => 'error', 'message' => 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.']);
-            }
-
-        } elseif ($event['action'] == 'unavailable') {
-            $this->thesisTitlesStatus[$thesisId] = 'Unavailable';
-            unset($this->countdowns[$thesisId]);
-
-            // If user has this thesis selected, but it's now unavailable
-            if ($this->selectedThesisTitle == $thesisId) {
-                $this->selectedThesisTitle = null;
-                $this->dispatch('notify', ['type' => 'warning', 'message' => 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.']);
-            }
-
-            // If we're in confirmation step and our selection is no longer valid
-            if ($this->step == 3 && $this->selectedThesisTitle == $thesisId) {
-                $this->error = 'Judul skripsi yang Anda pilih telah dipilih oleh mahasiswa lain.';
-                $this->goBack();
-                $this->dispatch('notify', ['type' => 'error', 'message' => 'Judul skripsi telah dipilih oleh mahasiswa lain.']);
-            }
+            // Refresh frontend
+            $this->dispatch('refreshCountdowns');
         }
-
-        // Refresh frontend
-        $this->dispatch('refreshCountdowns');
     }
-}
 
     public function handleCountdownEnded($thesisId)
     {
@@ -285,9 +366,9 @@ public $sortDirection = 'asc';
                 ->latest()
                 ->first();
 
-            if ($thesis && $activeSelection) {
-                // Verify if it's actually expired
-                if ($activeSelection->expires_at <= now()) {
+            if ($thesis) {
+                // Verifikasi jika benar-benar sudah kedaluwarsa dengan membandingkan timestamp
+                if ($activeSelection && $activeSelection->expires_at <= now()) {
                     // Update status judul menjadi Available
                     $thesis->status = 'Available';
                     $thesis->save();
@@ -299,10 +380,6 @@ public $sortDirection = 'asc';
                     // Broadcast ke seluruh user
                     event(new ThesisSelectionEvent($thesis, 'expired'));
 
-                    // Update local state
-                    $this->thesisTitlesStatus[$thesisId] = 'Available';
-                    unset($this->countdowns[$thesisId]);
-
                     // If we're in step 3 and this is our thesis, go back to step 2
                     if ($this->step == 3 && $this->selectedThesisTitle == $thesisId) {
                         $this->error = 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.';
@@ -310,6 +387,11 @@ public $sortDirection = 'asc';
                         $this->dispatch('notify', ['type' => 'error', 'message' => 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.']);
                     }
                 }
+
+                // Update local state - lakukan ini terlepas dari apakah ada active selection atau tidak
+                $this->thesisTitlesStatus[$thesisId] = $thesis->status; // Gunakan status dari database
+                unset($this->countdowns[$thesisId]);
+                $this->dispatch('refreshCountdowns');
             }
 
             DB::commit();
@@ -396,6 +478,7 @@ public $sortDirection = 'asc';
             });
         }
     }
+
     public function updatedSelectedStudent()
     {
         if ($this->selectedStudent) {

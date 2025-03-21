@@ -136,148 +136,187 @@
 
             <!-- Step 2: Judul Skripsi -->
             @if ($step == 2)
-                                <div>
-                                    <h3 class="text-lg font-medium text-gray-900 mb-4">Pilih Judul Skripsi</h3>
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Pilih Judul Skripsi</h3>
 
-                                    <!-- Search, Filter, and Sort Controls -->
-                                    <div class="space-y-4 mb-6">
-                                        <div class="bg-gray-50 p-4 rounded-md">
-                                            <p class="text-sm font-medium text-gray-700">Mahasiswa: <span
-                                                    class="font-semibold">{{ optional(App\Models\Student::find($selectedStudent))->name }}</span>
-                                            </p>
-                                            <p class="text-sm font-medium text-gray-700">Kelas: <span
-                                                    class="font-semibold">{{ $studentClass }}</span></p>
-                                            <p class="text-sm font-medium text-gray-700">Topik: <span
-                                                    class="font-semibold">{{ $studentTopic }}</span></p>
-                                        </div>
-
-                                        <!-- Search and filters -->
-                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <!-- Search -->
-                                            <div>
-                                                <label for="search" class="block text-sm font-medium text-gray-700">Cari Judul
-                                                    Skripsi</label>
-                                                <div class="mt-1 relative rounded-md shadow-sm">
-                                                    <input type="text" id="search" wire:model.debounce.300ms="search"
-                                                        class="block w-full pr-10 border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                                        placeholder="Masukkan kata kunci atau kode">
-                                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor"
-                                                            viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <!-- Status Filter -->
-                                            <div>
-                                                <label for="statusFilter" class="block text-sm font-medium text-gray-700">Filter
-                                                    Status</label>
-                                                <select id="statusFilter" wire:model.live="statusFilter"
-                                                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                                    <option value="all">Semua</option>
-                                                    <option value="available">Tersedia</option>
-                                                    <option value="in-selection">Sedang Dipilih</option>
-                                                </select>
-                                            </div>
-
-                                            <!-- Sort -->
-                                            <div>
-                                                <label for="sortField" class="block text-sm font-medium text-gray-700">Urutkan
-                                                    Berdasarkan</label>
-                                                <div class="mt-1 flex rounded-md shadow-sm">
-                                                    <select id="sortField" wire:model.live="sortField"
-                                                        class="focus:ring-indigo-500 focus:border-indigo-500 flex-1 block w-full rounded-none rounded-l-md sm:text-sm border-gray-300">
-                                                        <option value="status">Status (Default)</option>
-                                                    </select>
-                                                    <button
-                                                        wire:click="$set('sortDirection', '{{ $sortDirection === 'asc' ? 'desc' : 'asc' }}')"
-                                                        class="ml-2 p-2 bg-gray-100 rounded hover:bg-gray-200">
-                                                        @if ($sortDirection === 'asc')
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                                    d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                                                            </svg>
-                                                        @else
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                                                viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                                    d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                                                            </svg>
-                                                        @endif
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Thesis list -->
-                                    <div class="space-y-4" id="thesis-titles-container">
-                                        @if ($thesisTitles->isEmpty())
-                                            <div class="text-center py-6 bg-gray-50 rounded-md">
-                                                <p class="text-gray-500">Tidak ada judul skripsi yang sesuai dengan kriteria pencarian.
-                                                </p>
-                                            </div>
-                                        @else
-                                            @foreach ($thesisTitles as $thesis)
-                                                <!-- Thesis item -->
-                                                <div class="relative flex items-start border rounded-md p-4 hover:bg-gray-50
-                                                    {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-50 border-yellow-300' : '' }}
-                                                    {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Unavailable' ? 'bg-gray-100 border-gray-300' : '' }}"
-                                                    id="thesis-container-{{ $thesis->id }}">
-                                                    <div class="flex items-center h-5">
-                                                        <input id="thesis-{{ $thesis->id }}" wire:model.live="selectedThesisTitle"
-                                                            value="{{ $thesis->id }}" type="radio"
-                                                            class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
-                                                            {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] != 'Available' ? 'disabled' : '' }}>
-                                                    </div>
-                                                    <div class="ml-3 flex-1">
-                                                        <label for="thesis-{{ $thesis->id }}"
-                                                            class="font-medium text-gray-700 {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Unavailable' ? 'line-through text-gray-500' : '' }}">{{ $thesis->title }}</label>
-                                                        <p class="text-gray-500 text-sm">{{ $thesis->description }}</p>
-                                                        <div class="flex justify-between items-center mt-2">
-                                                            <span
-                                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-100 text-yellow-800' : '' }}
-                                                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Available' ? 'bg-green-100 text-green-800' : '' }}
-                                                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Unavailable' ? 'bg-red-100 text-red-800' : '' }}"
-                                                                id="thesis-status-{{ $thesis->id }}">
-                                                                @if (isset($thesisTitlesStatus[$thesis->id]))
-                                                                    @if ($thesisTitlesStatus[$thesis->id] == 'Available')
-                                                                        Tersedia
-                                                                    @elseif($thesisTitlesStatus[$thesis->id] == 'In Selection')
-                                                                        Sedang Dipilih
-                                                                    @elseif($thesisTitlesStatus[$thesis->id] == 'Unavailable')
-                                                                        Sudah Dipilih
-                                                                    @endif
-                                                                @else
-                                                                    Tersedia
-                                                                @endif
-                                                            </span>
-                                                            <!-- Kode lain yang diperlukan di sini -->
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        @endif
-                                    </div>
-                                </div>
-                                <div class="flex justify-between pt-5">
-                                    <button type="button" wire:click="goBack"
-                                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                        Kembali
-                                    </button>
-                                    <button type="button" wire:click="continueToStep3"
-                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                        Lanjutkan
-                                    </button>
-                                </div>
+                    <!-- Search, Filter, and Sort Controls -->
+                    <div class="space-y-4 mb-6">
+                        <div class="bg-gray-50 p-4 rounded-md">
+                            <p class="text-sm font-medium text-gray-700">Mahasiswa: <span
+                                    class="font-semibold">{{ optional(App\Models\Student::find($selectedStudent))->name }}</span>
+                            </p>
+                            <p class="text-sm font-medium text-gray-700">Kelas: <span
+                                    class="font-semibold">{{ $studentClass }}</span></p>
+                            <p class="text-sm font-medium text-gray-700">Topik: <span
+                                    class="font-semibold">{{ $studentTopic }}</span></p>
                         </div>
+
+                        <!-- Search and filters -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Search -->
+                            <div>
+                                <label for="search" class="block text-sm font-medium text-gray-700">Cari Judul
+                                    Skripsi</label>
+                                <div class="mt-1 relative rounded-md shadow-sm">
+                                    <input type="text" id="search" wire:model.debounce.300ms="search"
+                                        class="block w-full pr-10 border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="Masukkan kata kunci atau kode">
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Add this after the search filters section -->
+                            @if ($searchRelevanceActive)
+                                <div class="mt-2 bg-blue-50 border-l-4 border-blue-400 p-2 text-sm">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0">
+                                            <svg class="h-5 w-5 text-blue-400" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                                                </path>
+                                            </svg>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-blue-700">
+                                                Hasil diurutkan berdasarkan relevansi dengan kata kunci
+                                                "{{ $search }}"
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+                            <!-- Status Filter -->
+                            <div>
+                                <label for="statusFilter" class="block text-sm font-medium text-gray-700">Filter
+                                    Status</label>
+                                <select id="statusFilter" wire:model.live="statusFilter"
+                                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="all">Semua</option>
+                                    <option value="available">Tersedia</option>
+                                    <option value="in-selection">Sedang Dipilih</option>
+                                </select>
+                            </div>
+
+                            <!-- Sort -->
+                            <div>
+                                <label for="sortField" class="block text-sm font-medium text-gray-700">Urutkan
+                                    Berdasarkan</label>
+                                <div class="mt-1 flex rounded-md shadow-sm">
+                                    <select id="sortField" wire:model.live="sortField"
+                                        class="focus:ring-indigo-500 focus:border-indigo-500 flex-1 block w-full rounded-none rounded-l-md sm:text-sm border-gray-300"
+                                        {{ $searchRelevanceActive ? 'disabled' : '' }}>
+                                        <option value="status">Status (Default)</option>
+                                        <option value="title">Judul</option>
+                                    </select>
+                                    <button
+                                        wire:click="$set('sortDirection', '{{ $sortDirection === 'asc' ? 'desc' : 'asc' }}')"
+                                        class="ml-2 p-2 bg-gray-100 rounded hover:bg-gray-200 {{ $searchRelevanceActive ? 'opacity-50 cursor-not-allowed' : '' }}"
+                                        {{ $searchRelevanceActive ? 'disabled' : '' }}>
+                                        @if ($sortDirection === 'asc')
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                            </svg>
+                                        @else
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                                            </svg>
+                                        @endif
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- This code should be added to the existing Step 2 section where the thesis titles are displayed -->
+
                     </div>
                 </div>
-            @endif
+                @if ($isSearching)
+                    <div class="flex justify-center items-center py-4">
+                        <svg class="animate-spin h-6 w-6 text-indigo-500" xmlns="http://www.w3.org/2000/svg"
+                            fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                        <span class="ml-2 text-sm text-gray-700">Mencari...</span>
+                    </div>
+                @endif
+                <!-- Thesis list -->
+                <div class="space-y-4" id="thesis-titles-container">
+                    @if ($thesisTitles->isEmpty())
+                        <div class="text-center py-6 bg-gray-50 rounded-md">
+                            <p class="text-gray-500">Tidak ada judul skripsi yang sesuai dengan kriteria pencarian.
+                            </p>
+                        </div>
+                    @else
+                        @foreach ($thesisTitles as $thesis)
+                            <!-- Thesis item -->
+                            <div class="relative flex items-start border rounded-md p-4 hover:bg-gray-50
+                                                                    {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-50 border-yellow-300' : '' }}
+                                                                    {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Unavailable' ? 'bg-gray-100 border-gray-300' : '' }}"
+                                id="thesis-container-{{ $thesis->id }}">
+                                <div class="flex items-center h-5">
+                                    <input id="thesis-{{ $thesis->id }}" wire:model.live="selectedThesisTitle"
+                                        value="{{ $thesis->id }}" type="radio"
+                                        class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300"
+                                        {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] != 'Available' ? 'disabled' : '' }}>
+                                </div>
+                                <div class="ml-3 flex-1">
+                                    <label for="thesis-{{ $thesis->id }}"
+                                        class="font-medium text-gray-700 {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Unavailable' ? 'line-through text-gray-500' : '' }}">{{ $thesis->title }}</label>
+                                    <p class="text-gray-500 text-sm">{{ $thesis->description }}</p>
+                                    <div class="flex justify-between items-center mt-2">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                                                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'In Selection' ? 'bg-yellow-100 text-yellow-800' : '' }}
+                                                                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Available' ? 'bg-green-100 text-green-800' : '' }}
+                                                                                {{ isset($thesisTitlesStatus[$thesis->id]) && $thesisTitlesStatus[$thesis->id] == 'Unavailable' ? 'bg-red-100 text-red-800' : '' }}"
+                                            id="thesis-status-{{ $thesis->id }}">
+                                            @if (isset($thesisTitlesStatus[$thesis->id]))
+                                                @if ($thesisTitlesStatus[$thesis->id] == 'Available')
+                                                    Tersedia
+                                                @elseif($thesisTitlesStatus[$thesis->id] == 'In Selection')
+                                                    Sedang Dipilih
+                                                @elseif($thesisTitlesStatus[$thesis->id] == 'Unavailable')
+                                                    Sudah Dipilih
+                                                @endif
+                                            @else
+                                                Tersedia
+                                            @endif
+                                        </span>
+                                        <!-- Kode lain yang diperlukan di sini -->
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    @endif
+                </div>
+        </div>
+        <div class="flex justify-between pt-5">
+            <button type="button" wire:click="goBack"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Kembali
+            </button>
+            <button type="button" wire:click="continueToStep3"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Lanjutkan
+            </button>
+        </div>
+    </div>
+</div>
+</div>
+@endif
 
 <!-- Step 3: Konfirmasi -->
 @if ($step == 3)
@@ -469,6 +508,22 @@
             }, 5000);
         });
 
+        // FITUR BARU DARI FILE 1: Handle search input events
+        const searchInput = document.getElementById('search');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                // We're using debounce in the Livewire component,
+                // but we can also highlight the search terms in the results
+                highlightSearchTerms(this.value);
+            });
+        }
+
+        // FITUR BARU DARI FILE 1: Listen for search events
+        document.addEventListener('searchCompleted', function() {
+            // Trigger relevance-based sorting
+            Livewire.dispatch('searchRelevance');
+        });
+
         // Listen for Echo events
         window.Echo.channel('thesis-selections')
             .listen('.thesis.update', (event) => {
@@ -476,6 +531,37 @@
                 // The Livewire component will handle this via the listener
             });
     });
+
+    // FITUR BARU DARI FILE 1: Function to highlight search terms in the results
+    function highlightSearchTerms(searchQuery) {
+        if (!searchQuery) return;
+
+        const terms = searchQuery.toLowerCase().split(' ').filter(term => term.length > 0);
+        if (terms.length === 0) return;
+
+        const thesisElements = document.querySelectorAll('#thesis-titles-container label, #thesis-titles-container p');
+
+        thesisElements.forEach(element => {
+            const originalText = element.getAttribute('data-original-text') || element.textContent;
+
+            // Store original text if not already stored
+            if (!element.getAttribute('data-original-text')) {
+                element.setAttribute('data-original-text', originalText);
+            }
+
+            let highlightedText = originalText;
+
+            terms.forEach(term => {
+                const regex = new RegExp(`(${term})`, 'gi');
+                highlightedText = highlightedText.replace(regex, '<span class="bg-yellow-200">$1</span>');
+            });
+
+            // Only update if there are changes
+            if (highlightedText !== originalText) {
+                element.innerHTML = highlightedText;
+            }
+        });
+    }
 
     function initializeCountdowns() {
         // Clear any existing intervals
