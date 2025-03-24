@@ -6,6 +6,9 @@ use App\Models\Student;
 use App\Models\ThesisTitle;
 use App\Models\ThesisSelection;
 use App\Events\ThesisSelectionEvent;
+use App\Events\ThesisTimerEvent;
+use App\Services\ThesisTimerService;
+use App\Jobs\ProcessThesisTimerExpiration;
 use Livewire\Component;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -29,8 +32,8 @@ class ThesisSelectionForm extends Component
     public $success = null;
 
     protected $listeners = [
-        'echo:thesis-selections,thesis.update' => 'handleThesisUpdate',
-        'countdownEnded'                       => 'handleCountdownEnded',
+        'echo:thesis-timers,timer.update' => 'handleTimerUpdate',
+        'echo:thesis-selections,thesis.update' => 'handleThesisUpdate'
     ];
 
     protected $rules = [
@@ -115,7 +118,7 @@ class ThesisSelectionForm extends Component
             return;
         }
 
-        // Ambil judul skripsi berdasarkan topik mahasiswa - termasuk In Selection dengan timer
+        // Ambil judul skripsi berdasarkan topik mahasiswa
         $this->loadThesisTitles($student->thesis_topic);
 
         if ($this->thesisTitles->isEmpty()) {
@@ -129,91 +132,127 @@ class ThesisSelectionForm extends Component
 
     protected function loadThesisTitles($topic)
     {
-        // Load semua judul skripsi termasuk yang 'In Selection' (sedang dalam timer)
+        // Load semua judul skripsi dengan memanfaatkan timer service
+        $timerService = app(ThesisTimerService::class);
+
         $this->thesisTitles = ThesisTitle::where('topic', $topic)
             ->whereIn('status', ['Available', 'In Selection'])
             ->get();
 
-        // Periksa status real-time dari database untuk memastikan data terbaru
-        $this->refreshThesisTitlesStatus();
+        // Periksa status real-time dan inisialisasi data timer
+        $this->refreshThesisTitlesStatus($timerService);
     }
 
-    protected function refreshThesisTitlesStatus()
+    protected function refreshThesisTitlesStatus($timerService = null)
     {
+        if (!$timerService) {
+            $timerService = app(ThesisTimerService::class);
+        }
+
         $this->thesisTitlesStatus = [];
         $this->countdowns = [];
 
         foreach ($this->thesisTitles as $thesis) {
-            // Periksa apakah ada pemilihan aktif dengan timer yang belum habis
-            $activeSelection = ThesisSelection::where('thesis_title_id', $thesis->id)
-                ->where('status', 'Pending')
-                ->where('expires_at', '>', now())
-                ->latest()
-                ->first();
+            // Gunakan timer service untuk mendapatkan status timer terbaru
+            $timerStatus = $timerService->getTimerStatus($thesis->id);
 
-            if ($activeSelection) {
+            if ($timerStatus) {
+                // Ada timer aktif
                 $this->thesisTitlesStatus[$thesis->id] = 'In Selection';
-                $this->countdowns[$thesis->id] = $activeSelection->expires_at->timestamp;
+                $this->countdowns[$thesis->id] = $timerStatus['expires_at'];
+
+                // Jika sedang dipilih oleh mahasiswa ini, maka statusnya 'Selected'
+                if ($timerStatus['student_id'] == $this->selectedStudent) {
+                    $this->thesisTitlesStatus[$thesis->id] = 'Selected';
+                    $this->selectedThesisTitle = $thesis->id;
+                }
             } else {
-                // Jika tidak ada pemilihan aktif, atau timer sudah expired, status 'Available'
+                // Tidak ada timer aktif, status Available
                 $this->thesisTitlesStatus[$thesis->id] = 'Available';
             }
+        }
+
+        // Dispatch event untuk memperbarui UI timer
+        $this->dispatch('refreshCountdowns', ['countdowns' => $this->countdowns]);
+    }
+
+    public function handleTimerUpdate($event)
+    {
+        // Menangani update timer dari WebSocket
+        if (isset($event['id']) && $this->step == 2) {
+            $thesisId = $event['id'];
+            $action = $event['action'];
+
+            switch ($action) {
+                case 'started':
+                    $this->thesisTitlesStatus[$thesisId] = 'In Selection';
+                    $this->countdowns[$thesisId] = $event['data']['expires_at'];
+
+                    // Reset seleksi jika judul yang sedang dipilih tiba-tiba dipilih orang lain
+                    if (
+                        $this->selectedThesisTitle == $thesisId &&
+                        $event['data']['student_id'] != $this->selectedStudent
+                    ) {
+                        $this->selectedThesisTitle = null;
+                    }
+                    break;
+
+                case 'expired':
+                    $this->thesisTitlesStatus[$thesisId] = 'Available';
+                    unset($this->countdowns[$thesisId]);
+                    break;
+
+                case 'tick':
+                    // Update waktu countdown tanpa mengubah status
+                    if (isset($this->countdowns[$thesisId])) {
+                        $this->countdowns[$thesisId] = $event['data']['expires_at'];
+                    }
+                    break;
+            }
+
+            // Refresh UI timer
+            $this->dispatch('refreshCountdowns', ['countdowns' => $this->countdowns]);
         }
     }
 
     public function handleThesisUpdate($event)
     {
-        // Update status judul skripsi berdasarkan event real-time
-        if (isset($event['id']) && $this->step == 2) {
+        // Update status judul berdasarkan perubahan dalam database
+        if (isset($event['id']) && ($this->step == 2 || $this->step == 3)) {
             $thesisId = $event['id'];
+            $action = $event['action'];
 
-            if ($event['action'] == 'selected') {
-                $this->thesisTitlesStatus[$thesisId] = 'In Selection';
-                $this->countdowns[$thesisId] = $event['expiresAt'];
+            switch ($action) {
+                case 'selected':
+                    $this->thesisTitlesStatus[$thesisId] = 'In Selection';
+                    if (isset($event['expiresAt'])) {
+                        $this->countdowns[$thesisId] = $event['expiresAt'];
+                    }
+                    break;
 
-                // Jika judul yang dipilih user saat ini menjadi tidak tersedia
-                if ($this->selectedThesisTitle == $thesisId) {
-                    $this->selectedThesisTitle = null;
-                }
-            } elseif ($event['action'] == 'expired' || $event['action'] == 'available') {
-                $this->thesisTitlesStatus[$thesisId] = 'Available';
-                unset($this->countdowns[$thesisId]);
+                case 'expired':
+                case 'available':
+                    $this->thesisTitlesStatus[$thesisId] = 'Available';
+                    unset($this->countdowns[$thesisId]);
+                    break;
+
+                case 'unavailable':
+                    $this->thesisTitlesStatus[$thesisId] = 'Unavailable';
+                    unset($this->countdowns[$thesisId]);
+
+                    // Jika judul yang dipilih user saat ini menjadi tidak tersedia (diambil mahasiswa lain)
+                    if ($this->selectedThesisTitle == $thesisId && $this->step == 3) {
+                        // Kembalikan ke step 2 dengan pesan error
+                        $this->error = 'Judul skripsi ini telah dipilih oleh mahasiswa lain. Silakan pilih judul lain.';
+                        $this->step = 2;
+                        $this->selectedThesisTitle = null;
+                        $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
+                    }
+                    break;
             }
 
-            // Refresh tampilan
-            $this->dispatch('refreshCountdowns');
-        }
-    }
-
-    public function handleCountdownEnded($thesisId)
-    {
-        // Ketika timer habis, update status di database dan broadcast
-        try {
-            DB::beginTransaction();
-
-            $thesis = ThesisTitle::find($thesisId);
-            if ($thesis && $thesis->status == 'In Selection') {
-                // Update status judul menjadi Available
-                $thesis->status = 'Available';
-                $thesis->save();
-
-                // Batalkan pemilihan yang pending dengan thesis_id ini
-                ThesisSelection::where('thesis_title_id', $thesisId)
-                    ->where('status', 'Pending')
-                    ->update(['status' => 'Expired']);
-
-                // Broadcast ke seluruh user
-                event(new ThesisSelectionEvent($thesis, 'expired'));
-
-                // Update local state
-                $this->thesisTitlesStatus[$thesisId] = 'Available';
-                unset($this->countdowns[$thesisId]);
-            }
-
-            DB::commit();
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $this->error = "Error: " . $e->getMessage();
+            // Refresh UI timer
+            $this->dispatch('refreshCountdowns', ['countdowns' => $this->countdowns]);
         }
     }
 
@@ -232,136 +271,89 @@ class ThesisSelectionForm extends Component
             return;
         }
 
-        // Mulai timer untuk pemilihan ini
-        try {
-            DB::beginTransaction();
+        // Mulai timer menggunakan ThesisTimerService
+        $timerService = app(ThesisTimerService::class);
+        $timerResult = $timerService->startTimer($thesisId, $this->selectedStudent);
 
-            $thesis = ThesisTitle::find($thesisId);
-            $thesis->status = 'In Selection';
-            $thesis->save();
-
-            // Simpan temporary selection dengan waktu kedaluwarsa
-            $expiresAt = now()->addMinute();
-            $selection = new ThesisSelection([
-                'student_id'      => $this->selectedStudent,
-                'thesis_title_id' => $thesisId,
-                'ip_address'      => request()->ip(),
-                'status'          => 'Pending',
-                'expires_at'      => $expiresAt
-            ]);
-            $selection->save();
-
-            // Broadcast ke semua user
-            event(new ThesisSelectionEvent($thesis, 'selected', $expiresAt));
-
-            // Update local state
-            $this->thesisTitlesStatus[$thesisId] = 'In Selection';
-            $this->countdowns[$thesisId] = $expiresAt->timestamp;
-
-            DB::commit();
-
-            $this->error = null;
-            $this->step = 3;
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $this->error = "Error: " . $e->getMessage();
+        if (!$timerResult) {
+            $this->error = 'Tidak dapat memulai timer pemilihan. Silakan coba lagi atau pilih judul lain.';
             $this->loadThesisTitles(Student::find($this->selectedStudent)->thesis_topic);
+            return;
         }
+
+        // Update local state
+        $this->thesisTitlesStatus[$thesisId] = 'Selected'; // Status khusus untuk mahasiswa ini
+        $this->countdowns[$thesisId] = $timerResult['expires_at'];
+
+        // Jadwalkan job untuk menangani expiry jika perlu
+        ProcessThesisTimerExpiration::dispatch($thesisId)
+            ->delay(Carbon::createFromTimestamp($timerResult['expires_at']));
+
+        $this->error = null;
+        $this->step = 3;
+
+        // Refresh UI timer
+        $this->dispatch('refreshCountdowns', ['countdowns' => $this->countdowns]);
     }
 
     public function confirmSelection()
     {
         try {
-            $student = Student::find($this->selectedStudent);
-            $thesisTitle = ThesisTitle::find($this->selectedThesisTitle);
+            $timerService = app(ThesisTimerService::class);
+            $thesisId = $this->selectedThesisTitle;
+            $studentId = $this->selectedStudent;
 
-            if (!$student || !$thesisTitle) {
-                $this->error = 'Data tidak valid. Student: ' . ($student ? 'Found' : 'Not found') .
-                    ', Thesis: ' . ($thesisTitle ? 'Found' : 'Not found');
-                return;
-            }
+            // Verifikasi bahwa timer masih aktif
+            $timerStatus = $timerService->getTimerStatus($thesisId);
 
-            // Start database transaction
-            DB::beginTransaction();
-
-            // Check if timer is still valid
-            $activeSelection = ThesisSelection::where('thesis_title_id', $thesisTitle->id)
-                ->where('student_id', $student->id)
-                ->where('status', 'Pending')
-                ->where('expires_at', '>', now())
-                ->first();
-
-            if (!$activeSelection) {
-                $this->error = 'Waktu pemilihan judul skripsi telah habis. Silakan pilih judul lain.';
+            if (!$timerStatus || $timerStatus['student_id'] != $studentId) {
+                $this->error = 'Waktu pemilihan judul skripsi telah habis atau tidak valid. Silakan pilih judul lain.';
                 $this->step = 2;
-                $this->loadThesisTitles($student->thesis_topic);
-                DB::rollBack();
+                $this->loadThesisTitles(Student::find($studentId)->thesis_topic);
                 return;
             }
 
-            // Update thesis title status
-            $thesisTitle->status = 'Unavailable';
-            $thesisTitle->save();
+            // Selesaikan pemilihan menggunakan service
+            $result = $timerService->completeSelection($thesisId, $studentId);
 
-            // Update selection status
-            $activeSelection->status = 'Approved';
-            $activeSelection->save();
+            if (!$result) {
+                $this->error = 'Gagal menyelesaikan pemilihan judul. Silakan coba lagi.';
+                return;
+            }
 
-            // Update student status
-            $student->has_selected = true;
-            $student->save();
-
-            // Log activity
-            $student->activityLogs()->create([
-                'action'      => 'thesis_selection',
-                'description' => 'Mahasiswa memilih judul skripsi: ' . $thesisTitle->title,
-                'ip_address'  => request()->ip()
-            ]);
-
-            // Broadcast event
-            event(new ThesisSelectionEvent($thesisTitle, 'unavailable'));
-
-            // Commit the transaction
-            DB::commit();
-
-            // Move to success step
+            // Berhasil
             $this->step = 4;
             $this->success = 'Pemilihan judul skripsi berhasil. Silakan cek email Anda untuk konfirmasi.';
+
+            // // Kirim email notifikasi (dapat diimplementasikan di Queue)
+            // dispatch(new \App\Jobs\SendThesisSelectionEmail($studentId, $thesisId));
+
         } catch (\Exception $e) {
-            DB::rollBack();
             $this->error = 'Terjadi kesalahan: ' . $e->getMessage();
-            // Add a debugging message that shows where the error occurred
+            // Add debugging information
             $this->error .= ' [Line: ' . $e->getLine() . ' in ' . basename($e->getFile()) . ']';
         }
     }
-    public function debugConfirmation()
-    {
-        $student = Student::find($this->selectedStudent);
-        $thesisTitle = ThesisTitle::find($this->selectedThesisTitle);
 
-        $activeSelection = null;
-        if ($student && $thesisTitle) {
-            $activeSelection = ThesisSelection::where('thesis_title_id', $thesisTitle->id)
-                ->where('student_id', $student->id)
-                ->where('status', 'Pending')
-                ->latest()
-                ->first();
+    public function debugTimerStatus()
+    {
+        if ($this->selectedThesisTitle) {
+            $timerService = app(ThesisTimerService::class);
+            $status = $timerService->getTimerStatus($this->selectedThesisTitle);
+
+            return [
+                'thesis_id'       => $this->selectedThesisTitle,
+                'timer_status'    => $status,
+                'local_status'    => $this->thesisTitlesStatus[$this->selectedThesisTitle] ?? 'Unknown',
+                'local_countdown' => $this->countdowns[$this->selectedThesisTitle] ?? null,
+                'current_time'    => now()->timestamp,
+                'time_left'       => $status ? ($status['expires_at'] - now()->timestamp) : null
+            ];
         }
 
-        $debugInfo = [
-            'student_found'    => $student ? true : false,
-            'thesis_found'     => $thesisTitle ? true : false,
-            'active_selection' => $activeSelection ? [
-                'id'      => $activeSelection->id,
-                'status'  => $activeSelection->status,
-                'expired' => $activeSelection->expires_at < now()
-            ] : null,
-            'current_step'     => $this->step
-        ];
-
-        $this->error = 'Debug info: ' . json_encode($debugInfo);
+        return ['error' => 'No thesis selected'];
     }
+
     public function resetForm()
     {
         $this->reset(['step', 'selectedStudent', 'studentClass', 'studentTopic', 'token', 'npm', 'email', 'thesisTitles', 'selectedThesisTitle', 'error', 'success', 'thesisTitlesStatus', 'countdowns']);
@@ -370,6 +362,17 @@ class ThesisSelectionForm extends Component
 
     public function goBack()
     {
+        // Jika kembali dari step 3, batalkan pemilihan saat ini jika ada
+        if ($this->step == 3 && $this->selectedThesisTitle) {
+            $timerService = app(ThesisTimerService::class);
+            $timerStatus = $timerService->getTimerStatus($this->selectedThesisTitle);
+
+            if ($timerStatus && $timerStatus['student_id'] == $this->selectedStudent) {
+                // Handle cancellation
+                $timerService->handleExpiredTimer($this->selectedThesisTitle);
+            }
+        }
+
         $this->step--;
 
         if ($this->step == 2) {
